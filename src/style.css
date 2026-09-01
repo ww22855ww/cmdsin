@@ -113,6 +113,24 @@ html, body {
   flex: none;
 }
 
+.cmd-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #d4d4d4;
+  font: inherit;
+  caret-color: #d4d4d4;
+}
+
+.cmd-input::placeholder {
+  color: #6a6a6a;
+}
+
+.cmd-input:disabled {
+  opacity: 0.6;
+}
+
 .paste-input {
   flex: 1;
   background: transparent;

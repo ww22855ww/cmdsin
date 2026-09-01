@@ -2,6 +2,7 @@ import './style.css';
 import { createDisguise } from './disguise.js';
 
 const STORAGE_KEY = 'cmdsim.content';
+const FETCH_ENDPOINT = 'https://asia-east1-cmdsim.cloudfunctions.net/fetchContent';
 
 const app = document.querySelector('#app');
 
@@ -17,20 +18,32 @@ app.innerHTML = `
     </div>
     <div class="terminal-body" id="terminal-body">
       <div class="line-meta">Last login: ${lastLoginString()} on ttys001</div>
-      <div class="line-prompt">user@dev-machine:<span class="path">~/project</span>$ cat notes.md</div>
+      <div class="input-line">
+        <span class="prompt-label">user@dev-machine:<span class="path">~/project</span>$</span>
+        <input
+          id="cmd-input"
+          class="cmd-input"
+          type="text"
+          spellcheck="false"
+          placeholder="fetch <PTT 網址>　或直接在下方貼文字"
+        />
+      </div>
+      <div class="hint" id="fetch-status" hidden></div>
       <textarea
         id="paste-input"
         class="paste-input"
         spellcheck="false"
         placeholder="貼上文字內容...（會自動記住，重新整理不會消失）"
       ></textarea>
-      <div class="hint"># Ctrl+\` 快速切換偽裝畫面</div>
+      <div class="hint"># Ctrl+\` 快速切換偽裝畫面　·　# fetch &lt;PTT網址&gt; 自動抓取</div>
     </div>
     <div class="terminal-body log-body" id="disguise-body" hidden></div>
   </div>
 `;
 
 const textarea = document.querySelector('#paste-input');
+const cmdInput = document.querySelector('#cmd-input');
+const fetchStatus = document.querySelector('#fetch-status');
 const body = document.querySelector('#terminal-body');
 const disguiseBody = document.querySelector('#disguise-body');
 const titlebarText = document.querySelector('#titlebar-text');
@@ -70,6 +83,45 @@ function resizeTextarea() {
   textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
+function setStatus(text, isError) {
+  fetchStatus.hidden = !text;
+  fetchStatus.textContent = text;
+  fetchStatus.style.color = isError ? '#f14c4c' : '#6a6a6a';
+}
+
+cmdInput.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  const raw = cmdInput.value.trim();
+  if (!raw) return;
+
+  const match = raw.match(/^fetch\s+(\S+)/i);
+  if (!match) {
+    setStatus(`不支援的指令：${raw}（試試 fetch <PTT網址>）`, true);
+    return;
+  }
+
+  const url = match[1];
+  cmdInput.disabled = true;
+  setStatus(`正在抓取 ${url} ...`);
+
+  try {
+    const resp = await fetch(`${FETCH_ENDPOINT}?url=${encodeURIComponent(url)}`);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+
+    textarea.value = `# ${data.title}\n\n${data.content}`;
+    localStorage.setItem(STORAGE_KEY, textarea.value);
+    resizeTextarea();
+    setStatus(`已抓取：${data.title}`);
+    cmdInput.value = '';
+  } catch (err) {
+    setStatus(err.message, true);
+  } finally {
+    cmdInput.disabled = false;
+    cmdInput.focus();
+  }
+});
+
 function lastLoginString() {
   const d = new Date();
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -78,5 +130,7 @@ function lastLoginString() {
   return `${days[d.getDay()]} ${months[d.getMonth()]} ${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-window.addEventListener('load', () => textarea.focus());
-body.addEventListener('click', () => textarea.focus());
+window.addEventListener('load', () => cmdInput.focus());
+body.addEventListener('click', (e) => {
+  if (e.target === body) cmdInput.focus();
+});

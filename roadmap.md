@@ -23,13 +23,12 @@
 
 ## 決策事項（已確認）
 
-1. **目標網站**：PTT（例：`ptt.cc/bbs/marvel/`）與 Reddit。
-   - PTT：純 HTML，內容在 `div#main-content`，需濾掉推文/簽名檔，解析相對單純。
-   - Reddit：不爬 HTML，改用官方 JSON endpoint（原網址後加 `.json`，例如 `reddit.com/r/xxx/comments/xxx.json`），資料結構穩定、不易因改版壞掉，比解析 HTML 可靠。
-   - Cloud Function 需依網域判斷用哪種解析邏輯（PTT parser vs Reddit JSON parser）。
+1. **目標網站**：PTT（例：`ptt.cc/bbs/marvel/`）自動抓取；Reddit 改為手動貼文字。
+   - PTT：純 HTML，內容在 `div#main-content`，過濾 `.article-metaline` / `.push` 後取得乾淨內文，解析穩定可用。
+   - Reddit：原計畫用官方 `.json` endpoint，但實測發現 Reddit 會直接擋非官方認證的伺服器流量（本機與 GCP asia-east1 皆回傳 403 Blocked），即使加了描述性 User-Agent 也一樣。要解決需改走 Reddit 官方 OAuth API（需註冊 app 拿 client_id/secret），評估後決定先不做，Reddit 內容維持手動貼上文字（Phase 1 功能已支援）。
 2. **快速偽裝切換快捷鍵**：`Ctrl + \`` （反引號）。
 3. **偽裝畫面內容**：假的 `npm run build` 滾動 log。
-4. **GCP 專案**：另開新專案，與其他資源/費用隔離。
+4. **GCP 專案**：另開新專案 `cmdsim`（project number `461815395402`），與其他資源/費用隔離。
 
 ## Roadmap
 
@@ -46,12 +45,15 @@
 - [x] 切換後保留原本閱讀進度，再次切回能接續
 
 ### Phase 3 — 網址自動抓取
-- [ ] 建立新 GCP 專案
-- [ ] 建立 GCP Cloud Function：接收網址 → 依網域分派解析器 → 回傳純文字
-  - [ ] PTT 解析器（`div#main-content`，過濾推文/簽名檔）
-  - [ ] Reddit 解析器（改用 `.json` endpoint，解析 title + selftext / 留言）
-- [ ] 前端串接：貼網址 → 呼叫 function → 顯示內容
-- [ ] 錯誤處理：網址無效、非支援網站、抓取失敗、內容格式跑掉時的降級顯示（提示改用貼文字）
+- [x] 建立新 GCP 專案（`cmdsim`）
+- [x] 建立 GCP Cloud Function `fetchContent`（gen2, asia-east1）：接收網址 → 依網域分派 → 回傳純文字
+  - [x] PTT 解析器（`div#main-content`，過濾 metaline/推文，正確取出標題與內文）
+  - [x] ~~Reddit 解析器~~：Reddit 會擋非官方 API 流量（403），已改為明確錯誤訊息引導使用者手動貼文字
+- [x] 前端串接：終端機指令列輸入 `fetch <網址>` → 呼叫 function → 寫入內容區並存 localStorage
+- [x] 錯誤處理：不支援網域 / Reddit 網址 / 抓取失敗皆顯示紅字錯誤訊息，不影響既有內容
+- [ ] （可選，之後有興趣再做）Reddit 改走官方 OAuth API 以支援自動抓取
+
+**Cloud Function endpoint**：`https://asia-east1-cmdsim.cloudfunctions.net/fetchContent`（公開、無需驗證，僅接受 `ptt.cc` 網域，CORS 限制只允許 GitHub Pages 網域與本機開發伺服器呼叫）
 
 ### Phase 4 — 閱讀體驗優化
 - [ ] localStorage 記憶閱讀進度（依文章/網址區分）
