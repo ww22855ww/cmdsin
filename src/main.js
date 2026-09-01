@@ -34,8 +34,42 @@ app.innerHTML = `
         <button type="button" class="theme-toggle" id="theme-toggle" title="切換深/淺色主題"></button>
       </div>
     </div>
-    <div class="terminal-panes">
+    <div class="menu-bar">
+      <span>File</span><span>Edit</span><span>Selection</span><span>View</span><span>Go</span><span>Run</span><span>Terminal</span><span>Help</span>
+    </div>
+    <div class="ide-body">
+      <div class="activity-bar">
+        <button type="button" class="activity-icon active" id="activity-explorer" title="Explorer">⧉</button>
+        <button type="button" class="activity-icon" id="activity-search" title="Search">🔍</button>
+        <button type="button" class="activity-icon" id="activity-git" title="Source Control">⎇</button>
+        <button type="button" class="activity-icon" id="activity-ext" title="Extensions">⬡</button>
+      </div>
+      <div class="explorer" id="explorer">
+        <div class="explorer-title">EXPLORER</div>
+        <div class="explorer-project">CMDSIM</div>
+        <div class="explorer-tree">
+          <div class="tree-row tree-folder"><span class="tree-caret">▾</span>src</div>
+          <div class="tree-row tree-file tree-indent" data-file="index.js"><span class="tree-icon">JS</span>index.js</div>
+          <div class="tree-row tree-file tree-indent" data-file="router.js"><span class="tree-icon">JS</span>router.js</div>
+          <div class="tree-row tree-file tree-indent" data-file="store.js"><span class="tree-icon">JS</span>store.js</div>
+          <div class="tree-row tree-file tree-indent" data-file="auth.js"><span class="tree-icon">JS</span>auth.js</div>
+          <div class="tree-row tree-folder"><span class="tree-caret">▾</span>components</div>
+          <div class="tree-row tree-file tree-indent" data-file="Header.tsx"><span class="tree-icon">TS</span>Header.tsx</div>
+          <div class="tree-row tree-file tree-indent" data-file="Footer.tsx"><span class="tree-icon">TS</span>Footer.tsx</div>
+          <div class="tree-row tree-file" data-file="package.json"><span class="tree-icon">{}</span>package.json</div>
+          <div class="tree-row tree-file" data-file="README.md"><span class="tree-icon">MD</span>README.md</div>
+          <div class="tree-row tree-file tree-active" id="explorer-active-file" data-file="untitled.md"><span class="tree-icon">MD</span><span id="explorer-active-label">untitled.md</span></div>
+        </div>
+      </div>
+      <div class="terminal-panes">
       <div class="terminal-main">
+        <div class="tab-bar">
+          <div class="tab active">
+            <span class="tab-icon">MD</span>
+            <span class="tab-label" id="tab-label">untitled.md</span>
+            <span class="tab-close">×</span>
+          </div>
+        </div>
         <div class="terminal-body" id="terminal-body">
           <div class="line-meta">Last login: ${lastLoginString()} on ttys001</div>
           <div class="input-line">
@@ -74,6 +108,16 @@ app.innerHTML = `
       </div>
       <div class="pane-resizer" id="pane-resizer"></div>
       <div class="terminal-sidebar" id="terminal-sidebar"></div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span class="status-item">⎇ main</span>
+      <span class="status-item">✓ 0&nbsp;&nbsp;⚠ 0</span>
+      <span class="status-spacer"></span>
+      <span class="status-item" id="status-lang">Plain Text</span>
+      <span class="status-item">UTF-8</span>
+      <span class="status-item">LF</span>
+      <span class="status-item">Ln 1, Col 1</span>
     </div>
   </div>
 `;
@@ -97,10 +141,36 @@ const listHeader = document.querySelector('#list-header');
 const listItems = document.querySelector('#list-items');
 const listPrevBtn = document.querySelector('#list-prev');
 const listNextBtn = document.querySelector('#list-next');
+const explorer = document.querySelector('#explorer');
+const explorerActiveFile = document.querySelector('#explorer-active-file');
+const explorerActiveLabel = document.querySelector('#explorer-active-label');
+const tabLabel = document.querySelector('#tab-label');
+const statusLang = document.querySelector('#status-lang');
+const activityIcons = document.querySelectorAll('.activity-icon');
+const activityExplorer = document.querySelector('#activity-explorer');
 const disguise = createDisguise(disguiseBody);
 const sidebar = createSidebar(sidebarEl);
 
 sidebar.start();
+
+activityIcons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    activityIcons.forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (btn === activityExplorer) {
+      explorer.hidden = false;
+    } else {
+      explorer.hidden = true;
+    }
+  });
+});
+
+function setOpenFile(name, lang) {
+  tabLabel.textContent = name;
+  explorerActiveLabel.textContent = name;
+  explorerActiveFile.dataset.file = name;
+  statusLang.textContent = lang;
+}
 
 function setSidebarWidth(px) {
   const clamped = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, px));
@@ -285,6 +355,7 @@ function showPaste() {
   backToPasteBtn.hidden = true;
   backToListBtn.hidden = !lastListState;
   textarea.focus();
+  setOpenFile('draft.md', 'Markdown');
 }
 
 function showArticle(title, content) {
@@ -296,6 +367,7 @@ function showArticle(title, content) {
   articleView.hidden = false;
   backToListBtn.hidden = !lastListState;
   backToPasteBtn.hidden = false;
+  setOpenFile('article.md', 'Markdown');
 }
 
 backToPasteBtn.addEventListener('click', () => {
@@ -310,6 +382,7 @@ function showList(data) {
   articleView.hidden = true;
   backToListBtn.hidden = true;
   backToPasteBtn.hidden = true;
+  setOpenFile('README.md', 'Markdown');
 
   const pageLabel = data.page ? `第 ${data.page} 頁` : '最新';
   listHeader.textContent = `# 看板 ${data.board}（${pageLabel}，共 ${data.items.length} 篇）`;

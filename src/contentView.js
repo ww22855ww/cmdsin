@@ -41,6 +41,19 @@ export function renderContentBlocks(container, title, blocks) {
       return;
     }
 
+    if (block.type === 'caption') {
+      const div = document.createElement('div');
+      div.className = 'prose-block prose-caption';
+      div.textContent = block.text;
+      container.appendChild(div);
+      return;
+    }
+
+    if (block.type === 'hr') {
+      container.appendChild(document.createElement('hr')).className = 'content-divider';
+      return;
+    }
+
     const wrap = document.createElement('div');
     wrap.className = 'code-block';
 

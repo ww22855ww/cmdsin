@@ -88,17 +88,49 @@ function randomNoiseBlock() {
   return block;
 }
 
+// Short lead-in / follow-up captions, mimicking how a tech blog post
+// narrates a code sample — makes the noise read as a real write-up
+// instead of a random code dump.
+const INTROS = [
+  '先看一下這段：',
+  '簡單來說是這樣：',
+  '相關程式碼大概長這樣：',
+  '重點在這裡：',
+  '示意如下：',
+  '貼一下當時的 log：',
+  '對照一下這個：',
+];
+
+const EXPLANATIONS = [
+  '上面這段主要是處理重試邏輯，實際情況可能還要再調整 timeout。',
+  '這裡要注意非同步的執行順序，不然很容易踩雷。',
+  '效能上其實還有優化空間，先求能動再求好。',
+  '細節這邊就不展開了，有興趣可以自己追一下原始碼。',
+  '測試環境是這樣沒錯，正式環境數字可能會不太一樣。',
+  '這是舊版的寫法，新版已經改用別的方式處理了。',
+  '這段之後應該會再重構，先這樣頂著。',
+  '這個 edge case 一開始沒考慮到，後來才補上的。',
+  '順帶一提，這支 API 的 rate limit 抓得蠻緊的。',
+  '這邊卡了我蠻久的，主要是文件沒寫清楚。',
+  '之後有空再補上對應的測試。',
+];
+
 function splitSentences(paragraph) {
   return paragraph.split(/(?<=[。！？.!?])/).filter((s) => s.trim().length > 0);
 }
 
 /**
  * Splits article text into prose chunks and randomly interleaves fake
- * code/log snippets both between paragraphs and mid-paragraph (at
+ * code/log snippets — styled like a tech blog write-up (occasional
+ * lead-in line, code block, occasional follow-up caption, occasional
+ * section divider) — both between paragraphs and mid-paragraph (at
  * sentence boundaries), so long blocks of prose don't stay clumped
  * together. Returns an ordered list of blocks ready for structured
  * (syntax-highlighted) rendering:
- *   { type: 'prose', text } | { type: 'code', lang, code }
+ *   { type: 'prose', text }
+ *   | { type: 'caption', text }
+ *   | { type: 'code', lang, code }
+ *   | { type: 'hr' }
  */
 export function buildContentBlocks(text, probability = 0.55) {
   const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim().length > 0);
@@ -108,8 +140,11 @@ export function buildContentBlocks(text, probability = 0.55) {
     if (str.trim()) blocks.push({ type: 'prose', text: str });
   };
   const pushCode = () => {
+    if (Math.random() < 0.4) blocks.push({ type: 'caption', text: pick(INTROS) });
     const { lang, code } = randomNoiseBlock();
     blocks.push({ type: 'code', lang, code });
+    if (Math.random() < 0.55) blocks.push({ type: 'caption', text: pick(EXPLANATIONS) });
+    if (Math.random() < 0.18) blocks.push({ type: 'hr' });
   };
 
   paragraphs.forEach((para, pi) => {
