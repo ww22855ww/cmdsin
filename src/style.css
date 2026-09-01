@@ -581,6 +581,29 @@ html, body {
   margin-bottom: 10px;
 }
 
+.list-search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.list-search-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  outline: none;
+  color: var(--fg);
+  font: inherit;
+  padding: 4px 8px;
+  caret-color: var(--fg);
+}
+
+.list-search-input::placeholder {
+  color: var(--muted-color);
+}
+
 .list-extra {
   display: flex;
   gap: 14px;

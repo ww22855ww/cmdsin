@@ -79,7 +79,7 @@ app.innerHTML = `
               class="cmd-input"
               type="text"
               spellcheck="false"
-              placeholder="fetch <PTT 網址>　或直接在下方貼文字"
+              placeholder="fetch <PTT 網址>　或 search <看板> <關鍵字>　或直接在下方貼文字"
             />
           </div>
           <div class="hint" id="fetch-status" hidden></div>
@@ -89,6 +89,10 @@ app.innerHTML = `
           </div>
           <div class="list-view" id="list-view" hidden>
             <div class="list-header" id="list-header"></div>
+            <div class="list-search" id="list-search" hidden>
+              <input type="text" id="list-search-input" class="list-search-input" placeholder="搜尋看板內文章..." />
+              <button type="button" class="icon-btn" id="list-search-btn">🔍 搜尋</button>
+            </div>
             <div class="list-extra" id="list-extra"></div>
             <div class="list-items" id="list-items"></div>
             <div class="list-pager" id="list-pager">
@@ -140,6 +144,9 @@ const listView = document.querySelector('#list-view');
 const articleView = document.querySelector('#article-view');
 const listHeader = document.querySelector('#list-header');
 const listExtra = document.querySelector('#list-extra');
+const listSearch = document.querySelector('#list-search');
+const listSearchInput = document.querySelector('#list-search-input');
+const listSearchBtn = document.querySelector('#list-search-btn');
 const listItems = document.querySelector('#list-items');
 const listPager = document.querySelector('#list-pager');
 const listPrevBtn = document.querySelector('#list-prev');
@@ -350,6 +357,17 @@ function setStatus(text, isError) {
 }
 
 let lastListState = null;
+let currentBoard = null;
+
+function doSearch(board, query) {
+  if (!board || !query) return;
+  doFetch(`https://www.ptt.cc/bbs/${board}/search?q=${encodeURIComponent(query)}`);
+}
+
+listSearchBtn.addEventListener('click', () => doSearch(currentBoard, listSearchInput.value.trim()));
+listSearchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doSearch(currentBoard, listSearchInput.value.trim());
+});
 
 function showPaste() {
   articleView.hidden = true;
@@ -388,13 +406,20 @@ function showList(data) {
   setOpenFile('README.md', 'Markdown');
 
   const isMan = data.kind === 'man';
+  const isSearch = data.kind === 'search';
 
   if (isMan) {
     listHeader.textContent = `# 精華區 ${data.board}（共 ${data.items.length} 項）`;
+  } else if (isSearch) {
+    listHeader.textContent = `# 搜尋「${data.query}」in 看板 ${data.board}（第 ${data.page} 頁，共 ${data.items.length} 篇）`;
   } else {
     const pageLabel = data.page ? `第 ${data.page} 頁` : '最新';
     listHeader.textContent = `# 看板 ${data.board}（${pageLabel}，共 ${data.items.length} 篇）`;
   }
+
+  currentBoard = data.board;
+  listSearch.hidden = isMan;
+  listSearchInput.value = isSearch ? data.query : '';
 
   listExtra.innerHTML = '';
   if (isMan) {
@@ -404,8 +429,13 @@ function showList(data) {
     if (data.boardUrl) {
       listExtra.appendChild(makeExtraLink('📋 回看板', data.boardUrl));
     }
-  } else if (data.manUrl) {
-    listExtra.appendChild(makeExtraLink('📚 精華區', data.manUrl));
+  } else {
+    if (isSearch) {
+      listExtra.appendChild(makeExtraLink('📋 回看板', `https://www.ptt.cc/bbs/${data.board}/index.html`));
+    }
+    if (data.manUrl) {
+      listExtra.appendChild(makeExtraLink('📚 精華區', data.manUrl));
+    }
   }
 
   listItems.innerHTML = '';
@@ -499,13 +529,19 @@ cmdInput.addEventListener('keydown', (e) => {
   const raw = cmdInput.value.trim();
   if (!raw) return;
 
-  const match = raw.match(/^fetch\s+(\S+)/i);
-  if (!match) {
-    setStatus(`不支援的指令：${raw}（試試 fetch <PTT網址/看板網址>）`, true);
+  const fetchMatch = raw.match(/^fetch\s+(\S+)/i);
+  if (fetchMatch) {
+    doFetch(fetchMatch[1]);
     return;
   }
 
-  doFetch(match[1]);
+  const searchMatch = raw.match(/^search\s+(\S+)\s+(.+)/i);
+  if (searchMatch) {
+    doSearch(searchMatch[1], searchMatch[2].trim());
+    return;
+  }
+
+  setStatus(`不支援的指令：${raw}（試試 fetch <PTT網址/看板網址> 或 search <看板> <關鍵字>）`, true);
 });
 
 function lastLoginString() {

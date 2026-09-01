@@ -13,6 +13,7 @@ const PTT_ARTICLE_RE = /^\/bbs\/([^/]+)\/M\.\d+\.A\.[0-9A-F]+\.html$/i;
 const PTT_BOARD_RE = /^\/bbs\/([^/]+)\/(?:index(\d+)?\.html)?$/i;
 const PTT_MAN_ARTICLE_RE = /^\/man\/([^/]+)\/(?:[0-9A-F]+\/)*M\.\d+\.A\.[0-9A-F]+\.html$/i;
 const PTT_MAN_INDEX_RE = /^\/man\/([^/]+)\/(?:[0-9A-F]+\/)*index\.html$/i;
+const PTT_SEARCH_RE = /^\/bbs\/([^/]+)\/search\/?$/i;
 
 functions.http('fetchContent', async (req, res) => {
   const origin = req.get('origin');
@@ -45,6 +46,8 @@ functions.http('fetchContent', async (req, res) => {
     if (/(^|\.)ptt\.cc$/.test(parsed.hostname)) {
       if (PTT_ARTICLE_RE.test(parsed.pathname) || PTT_MAN_ARTICLE_RE.test(parsed.pathname)) {
         res.status(200).json(await fetchPttArticle(targetUrl));
+      } else if (PTT_SEARCH_RE.test(parsed.pathname)) {
+        res.status(200).json(await fetchPttSearch(targetUrl));
       } else if (PTT_BOARD_RE.test(parsed.pathname)) {
         res.status(200).json(await fetchPttBoard(targetUrl));
       } else if (PTT_MAN_INDEX_RE.test(parsed.pathname)) {
@@ -114,14 +117,7 @@ async function fetchPttArticle(url) {
   return { type: 'article', source: 'ptt', title, content };
 }
 
-async function fetchPttBoard(url) {
-  const html = await fetchPttHtml(url);
-  const $ = cheerio.load(html);
-  const parsed = new URL(url);
-  const boardMatch = parsed.pathname.match(PTT_BOARD_RE);
-  const board = boardMatch[1];
-  const page = boardMatch[2] ? Number(boardMatch[2]) : null;
-
+function parseArticleItems($, url) {
   const items = [];
   $('.r-ent').each((_, el) => {
     const link = $(el).find('.title a');
@@ -133,10 +129,29 @@ async function fetchPttBoard(url) {
     const pushText = $(el).find('.nrec').text().trim();
     items.push({ title, author, date, url: href, push: pushText });
   });
+  return items;
+}
 
+function parsePagingUrls($, url) {
   const pagingLinks = $('.action-bar .btn-group-paging a.btn');
   const prevHref = pagingLinks.eq(1).attr('href');
   const nextHref = pagingLinks.eq(2).attr('href');
+  return {
+    prevUrl: prevHref ? new URL(prevHref, url).toString() : null,
+    nextUrl: nextHref ? new URL(nextHref, url).toString() : null,
+  };
+}
+
+async function fetchPttBoard(url) {
+  const html = await fetchPttHtml(url);
+  const $ = cheerio.load(html);
+  const parsed = new URL(url);
+  const boardMatch = parsed.pathname.match(PTT_BOARD_RE);
+  const board = boardMatch[1];
+  const page = boardMatch[2] ? Number(boardMatch[2]) : null;
+
+  const items = parseArticleItems($, url);
+  const { prevUrl, nextUrl } = parsePagingUrls($, url);
   const manHref = $('.action-bar .btn-group-dir a.btn').eq(1).attr('href');
 
   return {
@@ -147,9 +162,35 @@ async function fetchPttBoard(url) {
     page,
     sourceUrl: url,
     items,
-    prevUrl: prevHref ? new URL(prevHref, url).toString() : null,
-    nextUrl: nextHref ? new URL(nextHref, url).toString() : null,
+    prevUrl,
+    nextUrl,
     manUrl: manHref ? new URL(manHref, url).toString() : null,
+  };
+}
+
+async function fetchPttSearch(url) {
+  const html = await fetchPttHtml(url);
+  const $ = cheerio.load(html);
+  const parsed = new URL(url);
+  const boardMatch = parsed.pathname.match(PTT_SEARCH_RE);
+  const board = boardMatch[1];
+  const query = parsed.searchParams.get('q') || '';
+  const page = Number(parsed.searchParams.get('page')) || 1;
+
+  const items = parseArticleItems($, url);
+  const { prevUrl, nextUrl } = parsePagingUrls($, url);
+
+  return {
+    type: 'list',
+    source: 'ptt',
+    kind: 'search',
+    board,
+    query,
+    page,
+    sourceUrl: url,
+    items,
+    prevUrl,
+    nextUrl,
   };
 }
 
