@@ -69,16 +69,30 @@ async function fetchPtt(url) {
   if (!title) title = $('title').text().trim();
 
   const main = $('#main-content');
+
+  const pushLines = [];
+  main.find('.push').each((_, el) => {
+    const tag = $(el).find('.push-tag').text().trim();
+    const userid = $(el).find('.push-userid').text().trim();
+    const text = $(el).find('.push-content').text().replace(/^:\s*/, '').trim();
+    const time = $(el).find('.push-ipdatetime').text().trim();
+    if (userid) pushLines.push(`${tag} ${userid}: ${text} ${time}`.trim());
+  });
+
   main.find('.article-metaline, .article-metaline-right, .push').remove();
   main.find('br').replaceWith('\n');
 
-  const content = main
+  const body = main
     .text()
     .split('\n')
     .map((line) => line.trim())
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+
+  const content = pushLines.length
+    ? `${body}\n\n===== 留言 (${pushLines.length}) =====\n\n${pushLines.join('\n')}`
+    : body;
 
   return { source: 'ptt', title, content };
 }

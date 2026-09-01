@@ -1,7 +1,9 @@
 import './style.css';
 import { createDisguise } from './disguise.js';
+import { createSidebar } from './sidebar.js';
 
 const STORAGE_KEY = 'cmdsim.content';
+const THEME_KEY = 'cmdsim.theme';
 const FETCH_ENDPOINT = 'https://asia-east1-cmdsim.cloudfunctions.net/fetchContent';
 
 const app = document.querySelector('#app');
@@ -15,29 +17,35 @@ app.innerHTML = `
         <span class="dot green"></span>
       </div>
       <div class="title" id="titlebar-text">bash — 100x40</div>
+      <button type="button" class="theme-toggle" id="theme-toggle" title="切換深/淺色主題"></button>
     </div>
-    <div class="terminal-body" id="terminal-body">
-      <div class="line-meta">Last login: ${lastLoginString()} on ttys001</div>
-      <div class="input-line">
-        <span class="prompt-label">user@dev-machine:<span class="path">~/project</span>$</span>
-        <input
-          id="cmd-input"
-          class="cmd-input"
-          type="text"
-          spellcheck="false"
-          placeholder="fetch <PTT 網址>　或直接在下方貼文字"
-        />
+    <div class="terminal-panes">
+      <div class="terminal-main">
+        <div class="terminal-body" id="terminal-body">
+          <div class="line-meta">Last login: ${lastLoginString()} on ttys001</div>
+          <div class="input-line">
+            <span class="prompt-label">user@dev-machine:<span class="path">~/project</span>$</span>
+            <input
+              id="cmd-input"
+              class="cmd-input"
+              type="text"
+              spellcheck="false"
+              placeholder="fetch <PTT 網址>　或直接在下方貼文字"
+            />
+          </div>
+          <div class="hint" id="fetch-status" hidden></div>
+          <textarea
+            id="paste-input"
+            class="paste-input"
+            spellcheck="false"
+            placeholder="貼上文字內容...（會自動記住，重新整理不會消失）"
+          ></textarea>
+          <div class="hint"># Ctrl+\` 快速切換偽裝畫面　·　# fetch &lt;PTT網址&gt; 自動抓取</div>
+        </div>
+        <div class="terminal-body log-body" id="disguise-body" hidden></div>
       </div>
-      <div class="hint" id="fetch-status" hidden></div>
-      <textarea
-        id="paste-input"
-        class="paste-input"
-        spellcheck="false"
-        placeholder="貼上文字內容...（會自動記住，重新整理不會消失）"
-      ></textarea>
-      <div class="hint"># Ctrl+\` 快速切換偽裝畫面　·　# fetch &lt;PTT網址&gt; 自動抓取</div>
+      <div class="terminal-sidebar" id="terminal-sidebar"></div>
     </div>
-    <div class="terminal-body log-body" id="disguise-body" hidden></div>
   </div>
 `;
 
@@ -47,7 +55,12 @@ const fetchStatus = document.querySelector('#fetch-status');
 const body = document.querySelector('#terminal-body');
 const disguiseBody = document.querySelector('#disguise-body');
 const titlebarText = document.querySelector('#titlebar-text');
+const themeToggle = document.querySelector('#theme-toggle');
+const sidebarEl = document.querySelector('#terminal-sidebar');
 const disguise = createDisguise(disguiseBody);
+const sidebar = createSidebar(sidebarEl);
+
+sidebar.start();
 
 let isDisguised = false;
 
@@ -70,6 +83,19 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  themeToggle.textContent = theme === 'light' ? '☀ light' : '☾ dark';
+  localStorage.setItem(THEME_KEY, theme);
+}
+
+themeToggle.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  applyTheme(current === 'light' ? 'dark' : 'light');
+});
+
+applyTheme(localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark');
+
 textarea.value = localStorage.getItem(STORAGE_KEY) ?? '';
 resizeTextarea();
 
@@ -86,7 +112,7 @@ function resizeTextarea() {
 function setStatus(text, isError) {
   fetchStatus.hidden = !text;
   fetchStatus.textContent = text;
-  fetchStatus.style.color = isError ? '#f14c4c' : '#6a6a6a';
+  fetchStatus.style.color = isError ? 'var(--error-color)' : 'var(--muted-color)';
 }
 
 cmdInput.addEventListener('keydown', async (e) => {
