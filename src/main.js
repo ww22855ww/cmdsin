@@ -1,13 +1,18 @@
 import './style.css';
 import { createDisguise } from './disguise.js';
 import { createSidebar } from './sidebar.js';
+import { interleaveNoise } from './noise.js';
 
 const STORAGE_KEY = 'cmdsim.content';
 const THEME_KEY = 'cmdsim.theme';
 const SIDEBAR_WIDTH_KEY = 'cmdsim.sidebarWidth';
+const FONT_SIZE_KEY = 'cmdsim.fontSize';
 const SIDEBAR_MIN = 160;
 const SIDEBAR_MAX = 640;
 const SIDEBAR_DEFAULT = 300;
+const FONT_MIN = 12;
+const FONT_MAX = 22;
+const FONT_DEFAULT = 14;
 const FETCH_ENDPOINT = 'https://asia-east1-cmdsim.cloudfunctions.net/fetchContent';
 
 const app = document.querySelector('#app');
@@ -21,7 +26,11 @@ app.innerHTML = `
         <span class="dot green"></span>
       </div>
       <div class="title" id="titlebar-text">bash — 100x40</div>
-      <button type="button" class="theme-toggle" id="theme-toggle" title="切換深/淺色主題"></button>
+      <div class="titlebar-actions">
+        <button type="button" class="icon-btn" id="font-dec" title="縮小字體">A−</button>
+        <button type="button" class="icon-btn" id="font-inc" title="放大字體">A+</button>
+        <button type="button" class="theme-toggle" id="theme-toggle" title="切換深/淺色主題"></button>
+      </div>
     </div>
     <div class="terminal-panes">
       <div class="terminal-main">
@@ -44,7 +53,7 @@ app.innerHTML = `
             spellcheck="false"
             placeholder="貼上文字內容...（會自動記住，重新整理不會消失）"
           ></textarea>
-          <div class="hint"># Ctrl+\` 快速切換偽裝畫面　·　# fetch &lt;PTT網址&gt; 自動抓取</div>
+          <div class="hint"># Ctrl+\` 偽裝切換　·　# fetch &lt;PTT網址&gt; 抓取　·　# Alt+↑/↓ 段落跳轉</div>
         </div>
         <div class="terminal-body log-body" id="disguise-body" hidden></div>
       </div>
@@ -61,6 +70,8 @@ const body = document.querySelector('#terminal-body');
 const disguiseBody = document.querySelector('#disguise-body');
 const titlebarText = document.querySelector('#titlebar-text');
 const themeToggle = document.querySelector('#theme-toggle');
+const fontDec = document.querySelector('#font-dec');
+const fontInc = document.querySelector('#font-inc');
 const sidebarEl = document.querySelector('#terminal-sidebar');
 const resizer = document.querySelector('#pane-resizer');
 const disguise = createDisguise(disguiseBody);
@@ -138,6 +149,25 @@ themeToggle.addEventListener('click', () => {
 
 applyTheme(localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark');
 
+function setFontSize(px) {
+  const clamped = Math.max(FONT_MIN, Math.min(FONT_MAX, px));
+  body.style.setProperty('--content-font-size', `${clamped}px`);
+  localStorage.setItem(FONT_SIZE_KEY, String(clamped));
+  return clamped;
+}
+
+const savedFontSize = parseInt(localStorage.getItem(FONT_SIZE_KEY), 10);
+setFontSize(Number.isFinite(savedFontSize) ? savedFontSize : FONT_DEFAULT);
+
+fontDec.addEventListener('click', () => {
+  setFontSize(parseFloat(getComputedStyle(body).fontSize) - 1);
+  resizeTextarea();
+});
+fontInc.addEventListener('click', () => {
+  setFontSize(parseFloat(getComputedStyle(body).fontSize) + 1);
+  resizeTextarea();
+});
+
 textarea.value = localStorage.getItem(STORAGE_KEY) ?? '';
 resizeTextarea();
 
@@ -150,6 +180,55 @@ function resizeTextarea() {
   textarea.style.height = 'auto';
   textarea.style.height = `${textarea.scrollHeight}px`;
 }
+
+const mirror = document.createElement('div');
+mirror.style.cssText = 'position:fixed; top:0; left:-9999px; visibility:hidden; white-space:pre-wrap; word-break:break-word;';
+document.body.appendChild(mirror);
+
+function scrollToTextareaIndex(index) {
+  const style = getComputedStyle(textarea);
+  mirror.style.font = style.font;
+  mirror.style.width = style.width;
+  mirror.style.padding = style.padding;
+  mirror.style.lineHeight = style.lineHeight;
+  mirror.textContent = textarea.value.slice(0, index);
+  const target = textarea.offsetTop + mirror.scrollHeight - body.clientHeight / 3;
+  body.scrollTop = Math.max(0, target);
+}
+
+function jumpParagraph(direction) {
+  const value = textarea.value;
+  const boundaries = [0];
+  const regex = /\n\s*\n/g;
+  let m;
+  while ((m = regex.exec(value))) {
+    boundaries.push(m.index + m[0].length);
+  }
+  boundaries.push(value.length);
+
+  const cursor = textarea.selectionStart;
+  let target;
+  if (direction > 0) {
+    target = boundaries.find((b) => b > cursor + 1) ?? value.length;
+  } else {
+    const before = boundaries.filter((b) => b < cursor - 1);
+    target = before.length ? before[before.length - 1] : 0;
+  }
+
+  textarea.focus();
+  textarea.setSelectionRange(target, target);
+  scrollToTextareaIndex(target);
+}
+
+textarea.addEventListener('keydown', (e) => {
+  if (e.altKey && e.key === 'ArrowDown') {
+    e.preventDefault();
+    jumpParagraph(1);
+  } else if (e.altKey && e.key === 'ArrowUp') {
+    e.preventDefault();
+    jumpParagraph(-1);
+  }
+});
 
 function setStatus(text, isError) {
   fetchStatus.hidden = !text;
@@ -177,7 +256,7 @@ cmdInput.addEventListener('keydown', async (e) => {
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
 
-    textarea.value = `# ${data.title}\n\n${data.content}`;
+    textarea.value = `# ${data.title}\n\n${interleaveNoise(data.content)}`;
     localStorage.setItem(STORAGE_KEY, textarea.value);
     resizeTextarea();
     setStatus(`已抓取：${data.title}`);

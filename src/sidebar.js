@@ -1,16 +1,32 @@
 const LOG_TEMPLATES = [
-  () => `GET /api/v1/health 200 ${(Math.random() * 30 + 2).toFixed(0)}ms`,
-  () => `GC: minor collection, freed ${(Math.random() * 40 + 5).toFixed(1)}MB`,
-  () => `[watch] file changed: src/${pick(['index', 'utils', 'router', 'store', 'auth'])}.ts`,
-  () => `cache ${pick(['hit', 'hit', 'miss'])} ratio: ${(Math.random() * 20 + 78).toFixed(1)}%`,
-  () => `worker-${Math.floor(Math.random() * 4) + 1}: heartbeat ok`,
-  () => `conn pool: ${Math.floor(Math.random() * 12 + 2)}/20 active`,
-  () => `[queue] job#${Math.floor(Math.random() * 9000 + 1000)} completed in ${(Math.random() * 800 + 50).toFixed(0)}ms`,
-  () => `DNS lookup api.internal → ${Math.floor(Math.random() * 255)}ms`,
+  { level: 'ok', weight: 5, gen: () => `GET /api/v1/health 200 ${(Math.random() * 30 + 2).toFixed(0)}ms` },
+  { level: 'ok', weight: 4, gen: () => `worker-${Math.floor(Math.random() * 4) + 1}: heartbeat ok` },
+  { level: 'info', weight: 4, gen: () => `GC: minor collection, freed ${(Math.random() * 40 + 5).toFixed(1)}MB` },
+  { level: 'info', weight: 4, gen: () => `[watch] file changed: src/${pick(['index', 'utils', 'router', 'store', 'auth'])}.ts` },
+  { level: 'info', weight: 4, gen: () => `cache ${pick(['hit', 'hit', 'miss'])} ratio: ${(Math.random() * 20 + 78).toFixed(1)}%` },
+  { level: 'info', weight: 3, gen: () => `conn pool: ${Math.floor(Math.random() * 12 + 2)}/20 active` },
+  { level: 'ok', weight: 3, gen: () => `[queue] job#${Math.floor(Math.random() * 9000 + 1000)} completed in ${(Math.random() * 800 + 50).toFixed(0)}ms` },
+  { level: 'info', weight: 3, gen: () => `DNS lookup api.internal → ${Math.floor(Math.random() * 255)}ms` },
+  { level: 'warn', weight: 2, gen: () => `slow query detected: ${(Math.random() * 900 + 300).toFixed(0)}ms (threshold 300ms)` },
+  { level: 'warn', weight: 2, gen: () => `retry ${Math.floor(Math.random() * 3) + 1}/3 for job#${Math.floor(Math.random() * 9000 + 1000)}` },
+  { level: 'warn', weight: 1, gen: () => `memory usage above 70% on worker-${Math.floor(Math.random() * 4) + 1}` },
+  { level: 'error', weight: 1, gen: () => `connection reset by peer (10.0.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}:443)` },
+  { level: 'error', weight: 1, gen: () => `unhandled rejection: ECONNREFUSED 127.0.0.1:${Math.floor(Math.random() * 9000 + 1000)}` },
 ];
+
+const TOTAL_WEIGHT = LOG_TEMPLATES.reduce((sum, t) => sum + t.weight, 0);
 
 function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function pickTemplate() {
+  let r = Math.random() * TOTAL_WEIGHT;
+  for (const t of LOG_TEMPLATES) {
+    r -= t.weight;
+    if (r <= 0) return t;
+  }
+  return LOG_TEMPLATES[0];
 }
 
 function clamp(n, min, max) {
@@ -19,6 +35,12 @@ function clamp(n, min, max) {
 
 function walk(value, min, max, step) {
   return clamp(value + (Math.random() - 0.5) * step, min, max);
+}
+
+function barLevel(pct) {
+  if (pct >= 80) return 'crit';
+  if (pct >= 55) return 'warn';
+  return 'ok';
 }
 
 export function createSidebar(container) {
@@ -59,23 +81,37 @@ export function createSidebar(container) {
 
   const MAX_LOG_LINES = 60;
 
+  function setBar(fillEl, valEl, value) {
+    fillEl.style.width = `${value}%`;
+    fillEl.dataset.level = barLevel(value);
+    valEl.textContent = `${value.toFixed(0)}%`;
+  }
+
   function updateStats() {
-    cpu = walk(cpu, 4, 85, 18);
+    cpu = walk(cpu, 4, 92, 18);
     mem = walk(mem, 30, 70, 6);
     net = walk(net, 2, 60, 20);
 
-    barCpu.style.width = `${cpu}%`;
-    barMem.style.width = `${mem}%`;
-    barNet.style.width = `${net}%`;
-    valCpu.textContent = `${cpu.toFixed(0)}%`;
-    valMem.textContent = `${mem.toFixed(0)}%`;
-    valNet.textContent = `${net.toFixed(0)}%`;
+    setBar(barCpu, valCpu, cpu);
+    setBar(barMem, valMem, mem);
+    setBar(barNet, valNet, net);
   }
 
   function appendLog() {
+    const template = pickTemplate();
     const line = document.createElement('div');
     line.className = 'log-line';
-    line.textContent = pick(LOG_TEMPLATES)();
+
+    const badge = document.createElement('span');
+    badge.className = `log-badge log-badge-${template.level}`;
+    badge.textContent = template.level.toUpperCase();
+
+    const text = document.createElement('span');
+    text.className = 'log-text';
+    text.textContent = template.gen();
+
+    line.appendChild(badge);
+    line.appendChild(text);
     logEl.appendChild(line);
     while (logEl.childElementCount > MAX_LOG_LINES) {
       logEl.removeChild(logEl.firstChild);
