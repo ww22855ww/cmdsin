@@ -47,13 +47,22 @@ app.innerHTML = `
             />
           </div>
           <div class="hint" id="fetch-status" hidden></div>
+          <button type="button" class="back-to-list" id="back-to-list" hidden>← 返回文章列表</button>
+          <div class="list-view" id="list-view" hidden>
+            <div class="list-header" id="list-header"></div>
+            <div class="list-items" id="list-items"></div>
+            <div class="list-pager">
+              <button type="button" class="icon-btn" id="list-prev" disabled>‹ 上頁（較舊）</button>
+              <button type="button" class="icon-btn" id="list-next" disabled>下頁（較新）›</button>
+            </div>
+          </div>
           <textarea
             id="paste-input"
             class="paste-input"
             spellcheck="false"
             placeholder="貼上文字內容...（會自動記住，重新整理不會消失）"
           ></textarea>
-          <div class="hint"># Ctrl+\` 偽裝切換　·　# fetch &lt;PTT網址&gt; 抓取　·　# Alt+↑/↓ 段落跳轉</div>
+          <div class="hint"># Ctrl+\` 偽裝切換　·　# fetch &lt;PTT網址/看板網址&gt; 抓取　·　# Alt+↑/↓ 段落跳轉</div>
         </div>
         <div class="terminal-body log-body" id="disguise-body" hidden></div>
       </div>
@@ -74,6 +83,12 @@ const fontDec = document.querySelector('#font-dec');
 const fontInc = document.querySelector('#font-inc');
 const sidebarEl = document.querySelector('#terminal-sidebar');
 const resizer = document.querySelector('#pane-resizer');
+const backToListBtn = document.querySelector('#back-to-list');
+const listView = document.querySelector('#list-view');
+const listHeader = document.querySelector('#list-header');
+const listItems = document.querySelector('#list-items');
+const listPrevBtn = document.querySelector('#list-prev');
+const listNextBtn = document.querySelector('#list-next');
 const disguise = createDisguise(disguiseBody);
 const sidebar = createSidebar(sidebarEl);
 
@@ -236,18 +251,61 @@ function setStatus(text, isError) {
   fetchStatus.style.color = isError ? 'var(--error-color)' : 'var(--muted-color)';
 }
 
-cmdInput.addEventListener('keydown', async (e) => {
-  if (e.key !== 'Enter') return;
-  const raw = cmdInput.value.trim();
-  if (!raw) return;
+let lastListState = null;
 
-  const match = raw.match(/^fetch\s+(\S+)/i);
-  if (!match) {
-    setStatus(`不支援的指令：${raw}（試試 fetch <PTT網址>）`, true);
-    return;
-  }
+function showArticle(data) {
+  listView.hidden = true;
+  textarea.hidden = false;
+  backToListBtn.hidden = !lastListState;
 
-  const url = match[1];
+  textarea.value = `# ${data.title}\n\n${interleaveNoise(data.content)}`;
+  localStorage.setItem(STORAGE_KEY, textarea.value);
+  resizeTextarea();
+}
+
+function showList(data) {
+  lastListState = data;
+  listView.hidden = false;
+  textarea.hidden = true;
+  backToListBtn.hidden = true;
+
+  const pageLabel = data.page ? `第 ${data.page} 頁` : '最新';
+  listHeader.textContent = `# 看板 ${data.board}（${pageLabel}，共 ${data.items.length} 篇）`;
+
+  listItems.innerHTML = '';
+  data.items.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'list-item';
+
+    const link = document.createElement('a');
+    link.href = '#';
+    link.className = 'list-item-title';
+    link.textContent = item.title;
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      doFetch(item.url);
+    });
+
+    const meta = document.createElement('span');
+    meta.className = 'list-item-meta';
+    meta.textContent = `${item.author || '?'} · ${item.date || ''}${item.push ? ' · 推' + item.push : ''}`;
+
+    row.appendChild(link);
+    row.appendChild(meta);
+    listItems.appendChild(row);
+  });
+
+  listPrevBtn.disabled = !data.prevUrl;
+  listNextBtn.disabled = !data.nextUrl;
+  listPrevBtn.onclick = () => data.prevUrl && doFetch(data.prevUrl);
+  listNextBtn.onclick = () => data.nextUrl && doFetch(data.nextUrl);
+}
+
+backToListBtn.addEventListener('click', () => {
+  if (lastListState) showList(lastListState);
+});
+
+async function doFetch(url) {
   cmdInput.disabled = true;
   setStatus(`正在抓取 ${url} ...`);
 
@@ -256,10 +314,13 @@ cmdInput.addEventListener('keydown', async (e) => {
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
 
-    textarea.value = `# ${data.title}\n\n${interleaveNoise(data.content)}`;
-    localStorage.setItem(STORAGE_KEY, textarea.value);
-    resizeTextarea();
-    setStatus(`已抓取：${data.title}`);
+    if (data.type === 'list') {
+      showList(data);
+      setStatus(`看板 ${data.board}：共 ${data.items.length} 篇文章`);
+    } else {
+      showArticle(data);
+      setStatus(`已抓取：${data.title}`);
+    }
     cmdInput.value = '';
   } catch (err) {
     setStatus(err.message, true);
@@ -267,6 +328,20 @@ cmdInput.addEventListener('keydown', async (e) => {
     cmdInput.disabled = false;
     cmdInput.focus();
   }
+}
+
+cmdInput.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const raw = cmdInput.value.trim();
+  if (!raw) return;
+
+  const match = raw.match(/^fetch\s+(\S+)/i);
+  if (!match) {
+    setStatus(`不支援的指令：${raw}（試試 fetch <PTT網址/看板網址>）`, true);
+    return;
+  }
+
+  doFetch(match[1]);
 });
 
 function lastLoginString() {

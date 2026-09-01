@@ -52,8 +52,13 @@
 - [x] 前端串接：終端機指令列輸入 `fetch <網址>` → 呼叫 function → 寫入內容區並存 localStorage
 - [x] 錯誤處理：不支援網域 / Reddit 網址 / 抓取失敗皆顯示紅字錯誤訊息，不影響既有內容
 - [ ] （可選，之後有興趣再做）Reddit 改走官方 OAuth API 以支援自動抓取
+- [x] PTT 看板文章列表頁支援：`fetch <看板網址>`（如 `ptt.cc/bbs/marvel/index.html`）辨識為列表而非文章，不套用抓取/雜訊處理，改為渲染可點擊的文章清單（標題/作者/日期/推文數）
+  - [x] 上一頁（較舊）/ 下一頁（較新）換頁，直接沿用 PTT 分頁列的實際連結（不自己猜編號規則，避免踩雷）
+  - [x] 點文章標題自動 `fetch` 該篇文章；文章頁上方出現「← 返回文章列表」，點擊用記憶體快取的資料重新渲染列表，不必重新抓取
+  - URL 判斷用 regex 區分文章頁（`M.<timestamp>.A.<hash>.html`）與看板頁（`index.html` / `index<N>.html` / 板首頁），不靠內容 sniffing，判斷成本低且穩定
+  - 開發時踩到的坑：`.back-to-list { display: block; }` 跟瀏覽器內建的 `[hidden]{display:none}` 規則優先權相同、又寫在後面，導致按鈕該隱藏時還是顯示。已在 style.css 最上面加一條 `[hidden] { display: none !important; }` 保險規則，之後新增任何會被 JS 用 `hidden` 屬性切換顯示的元素，都不會再中這個坑
 
-**Cloud Function endpoint**：`https://asia-east1-cmdsim.cloudfunctions.net/fetchContent`（公開、無需驗證，僅接受 `ptt.cc` 網域，CORS 限制只允許 GitHub Pages 網域與本機開發伺服器呼叫）
+**Cloud Function endpoint**：`https://asia-east1-cmdsim.cloudfunctions.net/fetchContent`（公開、無需驗證，僅接受 `ptt.cc` 網域，CORS 限制只允許 GitHub Pages 網域與本機開發伺服器呼叫；回傳 JSON 有 `type: 'article' | 'list'` 供前端分流處理）
 
 ### Phase 4 — 閱讀體驗優化
 - [x] 字體大小可調（標題列 A−/A+ 按鈕，12–22px，記住偏好；行距用相對單位隨字體等比縮放）
@@ -68,6 +73,7 @@
 - [x] 深色/淺色主題切換（標題列按鈕，記住偏好）
 - [x] 右側 log 面板加上 OK/INFO/WARN/ERROR 分級顏色標籤，數值越高 CPU/MEM/NET 進度條顏色也會變黃/變紅，仿真實監控 dashboard
 - [x] 抓取回來的文章內文隨機穿插假的程式碼/log 片段（stack trace、SQL、git commit 等），讓外人看起來更像技術輸出、不容易一眼看出是小說（`fetch` 抓回來的內容才會套用，手動貼上的文字不會被打亂）
+  - [x] 加大穿插機率並改成連段落內部（依句子邊界）都會穿插，不再只在整段之間插一次，避免大塊文字聚集在一起太明顯
 - [ ] 多套偽裝畫面主題可切換
 - [ ] 鍵盤音效（辦公室慎用，預設關閉）
 

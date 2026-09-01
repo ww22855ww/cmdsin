@@ -58,6 +58,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -242,6 +246,71 @@ html, body {
 
 .paste-input::placeholder {
   color: var(--muted-color);
+}
+
+.back-to-list {
+  display: block;
+  margin: 8px 0 0;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--prompt-color);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.back-to-list:hover {
+  border-color: var(--prompt-color);
+}
+
+.list-view {
+  margin-top: 8px;
+}
+
+.list-header {
+  color: var(--fg);
+  margin-bottom: 10px;
+}
+
+.list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.list-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  flex-wrap: wrap;
+}
+
+.list-item:hover {
+  background: color-mix(in srgb, var(--prompt-color) 10%, transparent);
+}
+
+.list-item-title {
+  color: var(--prompt-color);
+  text-decoration: none;
+  cursor: pointer;
+}
+.list-item-title:hover {
+  text-decoration: underline;
+}
+
+.list-item-meta {
+  color: var(--muted-color);
+  font-size: 12px;
+  flex: none;
+}
+
+.list-pager {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .cursor {

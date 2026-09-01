@@ -9,6 +9,9 @@ const ALLOWED_ORIGINS = new Set([
 const BROWSER_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
+const PTT_ARTICLE_RE = /^\/bbs\/([^/]+)\/M\.\d+\.A\.[0-9A-F]+\.html$/i;
+const PTT_BOARD_RE = /^\/bbs\/([^/]+)\/(?:index(\d+)?\.html)?$/i;
+
 functions.http('fetchContent', async (req, res) => {
   const origin = req.get('origin');
   if (origin && ALLOWED_ORIGINS.has(origin)) {
@@ -38,7 +41,13 @@ functions.http('fetchContent', async (req, res) => {
 
   try {
     if (/(^|\.)ptt\.cc$/.test(parsed.hostname)) {
-      res.status(200).json(await fetchPtt(targetUrl));
+      if (PTT_ARTICLE_RE.test(parsed.pathname)) {
+        res.status(200).json(await fetchPttArticle(targetUrl));
+      } else if (PTT_BOARD_RE.test(parsed.pathname)) {
+        res.status(200).json(await fetchPttBoard(targetUrl));
+      } else {
+        res.status(400).json({ error: '無法識別的 PTT 網址格式' });
+      }
     } else if (/(^|\.)reddit\.com$/.test(parsed.hostname)) {
       res.status(400).json({ error: 'Reddit 會擋自動抓取，請手動複製貼上文字內容' });
     } else {
@@ -49,7 +58,7 @@ functions.http('fetchContent', async (req, res) => {
   }
 });
 
-async function fetchPtt(url) {
+async function fetchPttHtml(url) {
   const resp = await fetch(url, {
     headers: {
       'User-Agent': BROWSER_UA,
@@ -57,9 +66,13 @@ async function fetchPtt(url) {
     },
   });
   if (!resp.ok) throw new Error(`PTT 回應 ${resp.status}`);
-  const html = await resp.text();
+  return resp.text();
+}
 
+async function fetchPttArticle(url) {
+  const html = await fetchPttHtml(url);
   const $ = cheerio.load(html);
+
   let title = '';
   $('.article-metaline').each((_, el) => {
     if ($(el).find('.article-meta-tag').text().trim() === '標題') {
@@ -94,5 +107,41 @@ async function fetchPtt(url) {
     ? `${body}\n\n===== 留言 (${pushLines.length}) =====\n\n${pushLines.join('\n')}`
     : body;
 
-  return { source: 'ptt', title, content };
+  return { type: 'article', source: 'ptt', title, content };
+}
+
+async function fetchPttBoard(url) {
+  const html = await fetchPttHtml(url);
+  const $ = cheerio.load(html);
+  const parsed = new URL(url);
+  const boardMatch = parsed.pathname.match(PTT_BOARD_RE);
+  const board = boardMatch[1];
+  const page = boardMatch[2] ? Number(boardMatch[2]) : null;
+
+  const items = [];
+  $('.r-ent').each((_, el) => {
+    const link = $(el).find('.title a');
+    if (!link.length) return; // deleted article, no link
+    const href = new URL(link.attr('href'), url).toString();
+    const title = link.text().trim();
+    const author = $(el).find('.meta .author').text().trim();
+    const date = $(el).find('.meta .date').text().trim();
+    const pushText = $(el).find('.nrec').text().trim();
+    items.push({ title, author, date, url: href, push: pushText });
+  });
+
+  const pagingLinks = $('.action-bar .btn-group-paging a.btn');
+  const prevHref = pagingLinks.eq(1).attr('href');
+  const nextHref = pagingLinks.eq(2).attr('href');
+
+  return {
+    type: 'list',
+    source: 'ptt',
+    board,
+    page,
+    sourceUrl: url,
+    items,
+    prevUrl: prevHref ? new URL(prevHref, url).toString() : null,
+    nextUrl: nextHref ? new URL(nextHref, url).toString() : null,
+  };
 }
