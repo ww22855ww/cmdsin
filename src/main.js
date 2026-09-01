@@ -89,8 +89,9 @@ app.innerHTML = `
           </div>
           <div class="list-view" id="list-view" hidden>
             <div class="list-header" id="list-header"></div>
+            <div class="list-extra" id="list-extra"></div>
             <div class="list-items" id="list-items"></div>
-            <div class="list-pager">
+            <div class="list-pager" id="list-pager">
               <button type="button" class="icon-btn" id="list-prev" disabled>‹ 上頁（較舊）</button>
               <button type="button" class="icon-btn" id="list-next" disabled>下頁（較新）›</button>
             </div>
@@ -138,7 +139,9 @@ const backToPasteBtn = document.querySelector('#back-to-paste');
 const listView = document.querySelector('#list-view');
 const articleView = document.querySelector('#article-view');
 const listHeader = document.querySelector('#list-header');
+const listExtra = document.querySelector('#list-extra');
 const listItems = document.querySelector('#list-items');
+const listPager = document.querySelector('#list-pager');
 const listPrevBtn = document.querySelector('#list-prev');
 const listNextBtn = document.querySelector('#list-next');
 const explorer = document.querySelector('#explorer');
@@ -384,8 +387,26 @@ function showList(data) {
   backToPasteBtn.hidden = true;
   setOpenFile('README.md', 'Markdown');
 
-  const pageLabel = data.page ? `第 ${data.page} 頁` : '最新';
-  listHeader.textContent = `# 看板 ${data.board}（${pageLabel}，共 ${data.items.length} 篇）`;
+  const isMan = data.kind === 'man';
+
+  if (isMan) {
+    listHeader.textContent = `# 精華區 ${data.board}（共 ${data.items.length} 項）`;
+  } else {
+    const pageLabel = data.page ? `第 ${data.page} 頁` : '最新';
+    listHeader.textContent = `# 看板 ${data.board}（${pageLabel}，共 ${data.items.length} 篇）`;
+  }
+
+  listExtra.innerHTML = '';
+  if (isMan) {
+    if (data.parentUrl) {
+      listExtra.appendChild(makeExtraLink('↑ 上一層', data.parentUrl));
+    }
+    if (data.boardUrl) {
+      listExtra.appendChild(makeExtraLink('📋 回看板', data.boardUrl));
+    }
+  } else if (data.manUrl) {
+    listExtra.appendChild(makeExtraLink('📚 精華區', data.manUrl));
+  }
 
   listItems.innerHTML = '';
   data.items.forEach((item) => {
@@ -395,25 +416,41 @@ function showList(data) {
     const link = document.createElement('a');
     link.href = '#';
     link.className = 'list-item-title';
-    link.textContent = item.title;
+    link.textContent = (item.isFolder ? '📁 ' : '') + item.title;
     link.addEventListener('click', (e) => {
       e.preventDefault();
       doFetch(item.url);
     });
 
-    const meta = document.createElement('span');
-    meta.className = 'list-item-meta';
-    meta.textContent = `${item.author || '?'} · ${item.date || ''}${item.push ? ' · 推' + item.push : ''}`;
-
     row.appendChild(link);
-    row.appendChild(meta);
+
+    if (!isMan) {
+      const meta = document.createElement('span');
+      meta.className = 'list-item-meta';
+      meta.textContent = `${item.author || '?'} · ${item.date || ''}${item.push ? ' · 推' + item.push : ''}`;
+      row.appendChild(meta);
+    }
+
     listItems.appendChild(row);
   });
 
+  listPager.hidden = isMan;
   listPrevBtn.disabled = !data.prevUrl;
   listNextBtn.disabled = !data.nextUrl;
   listPrevBtn.onclick = () => data.prevUrl && doFetch(data.prevUrl);
   listNextBtn.onclick = () => data.nextUrl && doFetch(data.nextUrl);
+}
+
+function makeExtraLink(label, url) {
+  const link = document.createElement('a');
+  link.href = '#';
+  link.className = 'list-extra-link';
+  link.textContent = label;
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    doFetch(url);
+  });
+  return link;
 }
 
 backToListBtn.addEventListener('click', () => {

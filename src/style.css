@@ -581,6 +581,22 @@ html, body {
   margin-bottom: 10px;
 }
 
+.list-extra {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.list-extra-link {
+  color: var(--prompt-color);
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 13px;
+}
+.list-extra-link:hover {
+  text-decoration: underline;
+}
+
 .list-items {
   display: flex;
   flex-direction: column;

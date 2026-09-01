@@ -11,6 +11,8 @@ const BROWSER_UA =
 
 const PTT_ARTICLE_RE = /^\/bbs\/([^/]+)\/M\.\d+\.A\.[0-9A-F]+\.html$/i;
 const PTT_BOARD_RE = /^\/bbs\/([^/]+)\/(?:index(\d+)?\.html)?$/i;
+const PTT_MAN_ARTICLE_RE = /^\/man\/([^/]+)\/(?:[0-9A-F]+\/)*M\.\d+\.A\.[0-9A-F]+\.html$/i;
+const PTT_MAN_INDEX_RE = /^\/man\/([^/]+)\/(?:[0-9A-F]+\/)*index\.html$/i;
 
 functions.http('fetchContent', async (req, res) => {
   const origin = req.get('origin');
@@ -41,10 +43,12 @@ functions.http('fetchContent', async (req, res) => {
 
   try {
     if (/(^|\.)ptt\.cc$/.test(parsed.hostname)) {
-      if (PTT_ARTICLE_RE.test(parsed.pathname)) {
+      if (PTT_ARTICLE_RE.test(parsed.pathname) || PTT_MAN_ARTICLE_RE.test(parsed.pathname)) {
         res.status(200).json(await fetchPttArticle(targetUrl));
       } else if (PTT_BOARD_RE.test(parsed.pathname)) {
         res.status(200).json(await fetchPttBoard(targetUrl));
+      } else if (PTT_MAN_INDEX_RE.test(parsed.pathname)) {
+        res.status(200).json(await fetchPttManIndex(targetUrl));
       } else {
         res.status(400).json({ error: '無法識別的 PTT 網址格式' });
       }
@@ -133,15 +137,54 @@ async function fetchPttBoard(url) {
   const pagingLinks = $('.action-bar .btn-group-paging a.btn');
   const prevHref = pagingLinks.eq(1).attr('href');
   const nextHref = pagingLinks.eq(2).attr('href');
+  const manHref = $('.action-bar .btn-group-dir a.btn').eq(1).attr('href');
 
   return {
     type: 'list',
     source: 'ptt',
+    kind: 'board',
     board,
     page,
     sourceUrl: url,
     items,
     prevUrl: prevHref ? new URL(prevHref, url).toString() : null,
     nextUrl: nextHref ? new URL(nextHref, url).toString() : null,
+    manUrl: manHref ? new URL(manHref, url).toString() : null,
+  };
+}
+
+async function fetchPttManIndex(url) {
+  const html = await fetchPttHtml(url);
+  const $ = cheerio.load(html);
+  const parsed = new URL(url);
+  const boardMatch = parsed.pathname.match(PTT_MAN_INDEX_RE);
+  const board = boardMatch[1];
+
+  const items = [];
+  $('.m-ent .title a').each((_, el) => {
+    const href = $(el).attr('href');
+    if (!href) return;
+    const absUrl = new URL(href, url).toString();
+    const title = $(el).text().trim();
+    const isFolder = /\/index\.html$/i.test(new URL(absUrl).pathname);
+    items.push({ title, url: absUrl, isFolder });
+  });
+
+  const boardHref = $('.action-bar .btn-group-dir a.btn').first().attr('href');
+  const boardUrl = boardHref ? new URL(boardHref, url).toString() : null;
+
+  const parentHref = $('#navigation a.board').attr('href');
+  const parentUrl = parentHref ? new URL(parentHref, url).toString() : null;
+  const isRoot = parentUrl === new URL(url).toString();
+
+  return {
+    type: 'list',
+    source: 'ptt',
+    kind: 'man',
+    board,
+    sourceUrl: url,
+    items,
+    boardUrl,
+    parentUrl: isRoot ? null : parentUrl,
   };
 }
