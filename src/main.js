@@ -4,6 +4,10 @@ import { createSidebar } from './sidebar.js';
 
 const STORAGE_KEY = 'cmdsim.content';
 const THEME_KEY = 'cmdsim.theme';
+const SIDEBAR_WIDTH_KEY = 'cmdsim.sidebarWidth';
+const SIDEBAR_MIN = 160;
+const SIDEBAR_MAX = 640;
+const SIDEBAR_DEFAULT = 300;
 const FETCH_ENDPOINT = 'https://asia-east1-cmdsim.cloudfunctions.net/fetchContent';
 
 const app = document.querySelector('#app');
@@ -44,6 +48,7 @@ app.innerHTML = `
         </div>
         <div class="terminal-body log-body" id="disguise-body" hidden></div>
       </div>
+      <div class="pane-resizer" id="pane-resizer"></div>
       <div class="terminal-sidebar" id="terminal-sidebar"></div>
     </div>
   </div>
@@ -57,10 +62,47 @@ const disguiseBody = document.querySelector('#disguise-body');
 const titlebarText = document.querySelector('#titlebar-text');
 const themeToggle = document.querySelector('#theme-toggle');
 const sidebarEl = document.querySelector('#terminal-sidebar');
+const resizer = document.querySelector('#pane-resizer');
 const disguise = createDisguise(disguiseBody);
 const sidebar = createSidebar(sidebarEl);
 
 sidebar.start();
+
+function setSidebarWidth(px) {
+  const clamped = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, px));
+  sidebarEl.style.width = `${clamped}px`;
+  return clamped;
+}
+
+const savedWidth = parseInt(localStorage.getItem(SIDEBAR_WIDTH_KEY), 10);
+setSidebarWidth(Number.isFinite(savedWidth) ? savedWidth : SIDEBAR_DEFAULT);
+
+resizer.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  const startX = e.clientX;
+  const startWidth = sidebarEl.getBoundingClientRect().width;
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+
+  function onMove(ev) {
+    const delta = startX - ev.clientX;
+    setSidebarWidth(startWidth + delta);
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarEl.getBoundingClientRect().width.toFixed(0));
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+});
+
+resizer.addEventListener('dblclick', () => {
+  setSidebarWidth(SIDEBAR_DEFAULT);
+  localStorage.setItem(SIDEBAR_WIDTH_KEY, String(SIDEBAR_DEFAULT));
+});
 
 let isDisguised = false;
 

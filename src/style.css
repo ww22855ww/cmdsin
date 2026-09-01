@@ -255,6 +255,32 @@ html, body {
 
 /* --- Sidebar: fills the empty right-hand space with a fake monitoring pane --- */
 
+.pane-resizer {
+  flex: none;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+}
+
+.pane-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 1px;
+  background: var(--sidebar-border);
+}
+
+.pane-resizer:hover::after,
+.pane-resizer:active::after {
+  left: 0;
+  width: 5px;
+  background: var(--prompt-color);
+  opacity: 0.5;
+}
+
 .terminal-sidebar {
   flex: none;
   width: 300px;
@@ -327,7 +353,8 @@ html, body {
 }
 
 @media (max-width: 860px) {
-  .terminal-sidebar {
+  .terminal-sidebar,
+  .pane-resizer {
     display: none;
   }
 }
