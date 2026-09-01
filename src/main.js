@@ -1,9 +1,11 @@
 import './style.css';
 import { createDisguise } from './disguise.js';
 import { createSidebar } from './sidebar.js';
-import { interleaveNoise } from './noise.js';
+import { buildContentBlocks } from './noise.js';
+import { renderContentBlocks } from './contentView.js';
 
 const STORAGE_KEY = 'cmdsim.content';
+const ARTICLE_KEY = 'cmdsim.article';
 const THEME_KEY = 'cmdsim.theme';
 const SIDEBAR_WIDTH_KEY = 'cmdsim.sidebarWidth';
 const FONT_SIZE_KEY = 'cmdsim.fontSize';
@@ -47,7 +49,10 @@ app.innerHTML = `
             />
           </div>
           <div class="hint" id="fetch-status" hidden></div>
-          <button type="button" class="back-to-list" id="back-to-list" hidden>← 返回文章列表</button>
+          <div class="view-actions">
+            <button type="button" class="back-to-list" id="back-to-list" hidden>← 返回文章列表</button>
+            <button type="button" class="back-to-list" id="back-to-paste" hidden>✎ 手動貼上文字</button>
+          </div>
           <div class="list-view" id="list-view" hidden>
             <div class="list-header" id="list-header"></div>
             <div class="list-items" id="list-items"></div>
@@ -56,6 +61,7 @@ app.innerHTML = `
               <button type="button" class="icon-btn" id="list-next" disabled>下頁（較新）›</button>
             </div>
           </div>
+          <div class="article-view" id="article-view" hidden></div>
           <textarea
             id="paste-input"
             class="paste-input"
@@ -84,7 +90,9 @@ const fontInc = document.querySelector('#font-inc');
 const sidebarEl = document.querySelector('#terminal-sidebar');
 const resizer = document.querySelector('#pane-resizer');
 const backToListBtn = document.querySelector('#back-to-list');
+const backToPasteBtn = document.querySelector('#back-to-paste');
 const listView = document.querySelector('#list-view');
+const articleView = document.querySelector('#article-view');
 const listHeader = document.querySelector('#list-header');
 const listItems = document.querySelector('#list-items');
 const listPrevBtn = document.querySelector('#list-prev');
@@ -211,7 +219,7 @@ function scrollToTextareaIndex(index) {
   body.scrollTop = Math.max(0, target);
 }
 
-function jumpParagraph(direction) {
+function jumpParagraphInTextarea(direction) {
   const value = textarea.value;
   const boundaries = [0];
   const regex = /\n\s*\n/g;
@@ -235,13 +243,30 @@ function jumpParagraph(direction) {
   scrollToTextareaIndex(target);
 }
 
-textarea.addEventListener('keydown', (e) => {
-  if (e.altKey && e.key === 'ArrowDown') {
+function jumpParagraphInArticle(direction) {
+  const blocks = Array.from(articleView.children);
+  if (!blocks.length) return;
+
+  const bodyRect = body.getBoundingClientRect();
+  const centerY = bodyRect.top + bodyRect.height / 3;
+  let idx = 0;
+  for (let i = 0; i < blocks.length; i++) {
+    if (blocks[i].getBoundingClientRect().top <= centerY) idx = i;
+    else break;
+  }
+  const targetIdx = Math.max(0, Math.min(blocks.length - 1, idx + direction));
+  blocks[targetIdx].scrollIntoView({ block: 'center' });
+}
+
+window.addEventListener('keydown', (e) => {
+  if (!e.altKey || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+  const direction = e.key === 'ArrowDown' ? 1 : -1;
+  if (!textarea.hidden) {
     e.preventDefault();
-    jumpParagraph(1);
-  } else if (e.altKey && e.key === 'ArrowUp') {
+    jumpParagraphInTextarea(direction);
+  } else if (!articleView.hidden) {
     e.preventDefault();
-    jumpParagraph(-1);
+    jumpParagraphInArticle(direction);
   }
 });
 
@@ -253,21 +278,38 @@ function setStatus(text, isError) {
 
 let lastListState = null;
 
-function showArticle(data) {
+function showPaste() {
+  articleView.hidden = true;
   listView.hidden = true;
   textarea.hidden = false;
+  backToPasteBtn.hidden = true;
   backToListBtn.hidden = !lastListState;
-
-  textarea.value = `# ${data.title}\n\n${interleaveNoise(data.content)}`;
-  localStorage.setItem(STORAGE_KEY, textarea.value);
-  resizeTextarea();
+  textarea.focus();
 }
+
+function showArticle(title, content) {
+  localStorage.setItem(ARTICLE_KEY, JSON.stringify({ title, content }));
+  renderContentBlocks(articleView, title, buildContentBlocks(content));
+
+  listView.hidden = true;
+  textarea.hidden = true;
+  articleView.hidden = false;
+  backToListBtn.hidden = !lastListState;
+  backToPasteBtn.hidden = false;
+}
+
+backToPasteBtn.addEventListener('click', () => {
+  localStorage.removeItem(ARTICLE_KEY);
+  showPaste();
+});
 
 function showList(data) {
   lastListState = data;
   listView.hidden = false;
   textarea.hidden = true;
+  articleView.hidden = true;
   backToListBtn.hidden = true;
+  backToPasteBtn.hidden = true;
 
   const pageLabel = data.page ? `第 ${data.page} 頁` : '最新';
   listHeader.textContent = `# 看板 ${data.board}（${pageLabel}，共 ${data.items.length} 篇）`;
@@ -305,6 +347,18 @@ backToListBtn.addEventListener('click', () => {
   if (lastListState) showList(lastListState);
 });
 
+const savedArticle = localStorage.getItem(ARTICLE_KEY);
+if (savedArticle) {
+  try {
+    const parsed = JSON.parse(savedArticle);
+    showArticle(parsed.title, parsed.content);
+  } catch {
+    showPaste();
+  }
+} else {
+  showPaste();
+}
+
 async function doFetch(url) {
   cmdInput.disabled = true;
   setStatus(`正在抓取 ${url} ...`);
@@ -318,7 +372,7 @@ async function doFetch(url) {
       showList(data);
       setStatus(`看板 ${data.board}：共 ${data.items.length} 篇文章`);
     } else {
-      showArticle(data);
+      showArticle(data.title, data.content);
       setStatus(`已抓取：${data.title}`);
     }
     cmdInput.value = '';

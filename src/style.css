@@ -24,6 +24,16 @@
   --bar-ok: #89d185;
   --bar-warn: #e2c08d;
   --bar-crit: #f14c4c;
+  --code-bg: #17181c;
+  --code-header-bg: #23252b;
+  --hl-keyword: #c678dd;
+  --hl-string: #98c379;
+  --hl-comment: #7f848e;
+  --hl-number: #d19a66;
+  --hl-function: #61afef;
+  --hl-variable: #e06c75;
+  --hl-builtin: #56b6c2;
+  --hl-meta: #7f848e;
 }
 
 :root[data-theme='light'] {
@@ -52,6 +62,16 @@
   --bar-ok: #1a7f37;
   --bar-warn: #9a6700;
   --bar-crit: #cf222e;
+  --code-bg: #f6f8fa;
+  --code-header-bg: #eaecef;
+  --hl-keyword: #a626a4;
+  --hl-string: #50a14f;
+  --hl-comment: #a0a1a7;
+  --hl-number: #986801;
+  --hl-function: #4078f2;
+  --hl-variable: #e45649;
+  --hl-builtin: #0184bc;
+  --hl-meta: #a0a1a7;
 }
 
 * {
@@ -248,9 +268,14 @@ html, body {
   color: var(--muted-color);
 }
 
+.view-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .back-to-list {
   display: block;
-  margin: 8px 0 0;
   background: transparent;
   border: 1px solid var(--border-color);
   border-radius: 4px;
@@ -262,6 +287,102 @@ html, body {
 }
 .back-to-list:hover {
   border-color: var(--prompt-color);
+}
+
+.article-view {
+  margin-top: 8px;
+}
+
+.prose-block {
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 1em;
+}
+
+.prose-title {
+  font-weight: 700;
+  margin-bottom: 1.2em;
+}
+
+.code-block {
+  margin: 1em 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.code-block-header {
+  background: var(--code-header-bg);
+  color: var(--muted-color);
+  font-size: 11px;
+  padding: 4px 10px;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--code-bg);
+  overflow-x: auto;
+}
+
+.code-block code {
+  font-family: inherit;
+  font-size: 0.92em;
+  color: var(--fg);
+  white-space: pre;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-type,
+.hljs-doctag {
+  color: var(--hl-keyword);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+  color: var(--hl-string);
+}
+.hljs-number {
+  color: var(--hl-number);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section {
+  color: var(--hl-function);
+  font-weight: 600;
+}
+.hljs-variable,
+.hljs-attr,
+.hljs-attribute,
+.hljs-params,
+.hljs-name,
+.hljs-tag {
+  color: var(--hl-variable);
+}
+.hljs-built_in,
+.hljs-builtin-name {
+  color: var(--hl-builtin);
+}
+.hljs-meta {
+  color: var(--hl-meta);
+}
+.hljs-deletion {
+  color: var(--error-color);
+}
+.hljs-addition {
+  color: var(--level-ok);
 }
 
 .list-view {
