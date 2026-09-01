@@ -145,3 +145,17 @@ html, body {
   font-size: 12px;
   margin-top: 16px;
 }
+
+.log-body {
+  color: #9cdcfe;
+}
+
+.log-line {
+  white-space: pre;
+}
+
+.log-line.log-header {
+  color: #ffffff;
+  white-space: pre-wrap;
+  margin-bottom: 8px;
+}

@@ -1,4 +1,5 @@
 import './style.css';
+import { createDisguise } from './disguise.js';
 
 const STORAGE_KEY = 'cmdsim.content';
 
@@ -12,7 +13,7 @@ app.innerHTML = `
         <span class="dot yellow"></span>
         <span class="dot green"></span>
       </div>
-      <div class="title">bash — 100x40</div>
+      <div class="title" id="titlebar-text">bash — 100x40</div>
     </div>
     <div class="terminal-body" id="terminal-body">
       <div class="line-meta">Last login: ${lastLoginString()} on ttys001</div>
@@ -25,11 +26,36 @@ app.innerHTML = `
       ></textarea>
       <div class="hint"># Ctrl+\` 快速切換偽裝畫面</div>
     </div>
+    <div class="terminal-body log-body" id="disguise-body" hidden></div>
   </div>
 `;
 
 const textarea = document.querySelector('#paste-input');
 const body = document.querySelector('#terminal-body');
+const disguiseBody = document.querySelector('#disguise-body');
+const titlebarText = document.querySelector('#titlebar-text');
+const disguise = createDisguise(disguiseBody);
+
+let isDisguised = false;
+
+function toggleDisguise() {
+  isDisguised = !isDisguised;
+  body.hidden = isDisguised;
+  disguiseBody.hidden = !isDisguised;
+  titlebarText.textContent = isDisguised ? 'node — npm run build' : 'bash — 100x40';
+  if (isDisguised) {
+    disguise.start();
+  } else {
+    disguise.stop();
+  }
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === '`') {
+    e.preventDefault();
+    toggleDisguise();
+  }
+});
 
 textarea.value = localStorage.getItem(STORAGE_KEY) ?? '';
 resizeTextarea();
